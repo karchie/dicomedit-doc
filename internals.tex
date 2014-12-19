@@ -1,0 +1,82 @@
+\documentclass[handout]{beamer}
+% \documentclass{beamer}
+\usetheme{Singapore}
+\usepackage{enumerate,picture}
+\title{DicomEdit internals}
+\author{Kevin A. Archie}
+\institute{Washington University Neuroinformatics Research Group}
+\date{12 September 2011}
+
+\begin{document}
+
+\begin{frame}
+\titlepage
+\end{frame}
+
+\section{Introduction}
+
+\begin{frame}{What is DicomEdit?}
+\begin{itemize}
+\pause \item Small language for specifying changes to DICOM metadata
+\pause \item a.k.a. ``anon script'' language
+\pause \item Interpreter is a modular component:
+\url{http://hg.xnat.org/dicomedit}
+\pause \item Similar in spirit (but not syntax) to MIRC Anonymizer language
+\end{itemize}
+\end{frame}
+
+
+\subsection{History}
+\begin{frame}{History}
+\begin{itemize}
+\pause \item DicomBrowser (late 2006; v1.0 released 1 March 2007)
+\pause \item Scriptable modifications (in DicomBrowser v1.0)
+\pause \item DicomSummarize/DicomRemap (first command-line DicomEdit, early 2008)
+\pause \item XNAT upload applet (2008)
+\pause \item XNAT archiving (2011)
+\end{itemize}
+\end{frame}
+
+\section{The implementation}
+\subsection{Parsing:Overview}
+\begin{frame}[fragile]
+\centering
+\begin{tabular}{cl}
+script (byte stream) \\
+$\downarrow$ & {\em lexical analysis} \\
+token stream \\
+$\downarrow$ & {\em parsing} \\
+abstract syntax tree (AST) \\
+$\downarrow$ & {\em AST parsing} \\
+internal representation
+\end{tabular}
+\end{frame}
+
+\subsection{Parsing: Implementation}
+\begin{frame}
+\begin{itemize}
+\item Three parsing components (lexer, parser, AST parser)
+ are written in EBNF for ANTLR
+\pause \item What for what now?
+\pause \item Extended Backus-Naur Form (EBNF) is a notation for representing (most) languages
+\pause \item ANTLR is a set of tools for building interpreters, compilers, etc.
+\pause \item ANTLR compiles its source files (EBNF, mostly) into Java (or C, C#, JavaScript, Python, Ruby, ...)
+\pause \item {\em but if I had to start over...}
+\end{frame}
+
+% go look at the ANTLR source files
+% points for extension:
+%  * changes to elementary types happen at lexer level
+%    (and will probably need Java type changes)
+%    e.g.: comparison operators, tag expressions
+%  * changes to syntax mostly happen at parser level
+%    e.g.: variable value enumeration
+% go look (briefly) at the ANTLR target files
+
+% next: ScriptApplicator
+% sets up the three parsers
+% adds functions and generators to the AST parser
+% see in particular: getTags(), getVariable(), getSortedVariables(),
+%   apply()
+
+\end{document}

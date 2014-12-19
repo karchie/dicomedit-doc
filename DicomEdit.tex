@@ -1,0 +1,412 @@
+\documentclass[handout]{beamer}
+% \documentclass{beamer}  % include pauses for talk slides
+\usetheme{Singapore}
+\usepackage{color,enumerate,fancyvrb,hyperref,verbatim}
+\title[DicomEdit]{DicomEdit\\A language for DICOM metadata modification}
+\author{Kevin A. Archie}
+\institute{Washington University Neuroinformatics Research Group}
+\date{12 September 2011}
+
+\mathchardef\mhyphen="2D
+
+\begin{document}
+
+\AtBeginSubsection[]
+{
+  \begin{frame}<beamer>
+    \frametitle{Overview}
+    \tableofcontents[currentsection,currentsubsection]
+  \end{frame}
+}
+
+\begin{frame}
+\titlepage
+\end{frame}
+
+\section{Introduction}
+
+\begin{frame}{What is DicomEdit?}
+\begin{itemize}
+\pause \item Small language for specifying changes to DICOM metadata
+\pause \item a.k.a. ``anon script'' language
+\pause \item Interpreter is a modular component:
+\url{http://hg.xnat.org/dicomedit}
+\pause \item Similar in spirit (but not syntax) to MIRC Anonymizer language
+\end{itemize}
+\end{frame}
+
+\subsection{History}
+\begin{frame}{History}
+\begin{itemize}
+\pause \item DicomBrowser (late 2006; v1.0 released 1 March 2007)
+\pause \item Scriptable modifications (in DicomBrowser v1.0)
+\pause \item DicomSummarize/DicomRemap (first command-line DicomEdit, early 2008)
+\pause \item XNAT upload applet (2008)
+\pause \item XNAT archiving (2011)
+\end{itemize}
+\end{frame}
+
+\section{The language}
+\subsection{Operations}
+\begin{frame}[fragile]{Operations}
+
+\begin{verbatim}
+// Assign a uniform Institution Name
+(0008,0080) := "WUSM"
+\end{verbatim}
+
+\pause
+\begin{verbatim}
+// Delete the Institution Address
+// and Frame of Reference UID
+- (0008,0081)
+- (0020,0052)
+\end{verbatim}
+
+\end{frame}
+
+\begin{frame}[fragile]{Conditional operations}
+
+\begin{verbatim}
+// Use Referring Physician's Name
+// to identify research group;
+// put research group identifier
+// into Clinical Trial Protocol ID
+(0008,0090) = "Lee^Ann"   : (0012,0020) := "P-035"
+(0008,0090) = "Hill^John" : (0012,0020) := "P-028"
+\end{verbatim}
+
+\pause
+\begin{verbatim}
+// Series with 3-digit numbers are derived data
+(0020,0011) ~ "\\d\\d\\d" : \
+  (0008,103e) := format["SECONDARY {0}", (0008,103e)]
+\end{verbatim}
+
+\end{frame}
+
+\subsection{User-defined variables}
+\begin{frame}[fragile]{User-defined variables}
+
+\begin{verbatim}
+// Allow the user to edit Patient ID
+// Initial value is the pre-modification value
+patientID := (0010,0020)
+describe patientID "Subject ID"
+(0010,0020) := patientID
+\end{verbatim}
+
+\end{frame}
+
+\subsection{Built-in functions}
+\begin{frame}[fragile]{Built-in functions}
+\scriptsize
+\begin{verbatim}
+// Get visit ID from web service
+// using Patient ID and Study Date
+describe visurl hidden
+visurl := format["http://localhost:3000/services/visitID?id={0}&date={1}", \
+       urlEncode[(0010,0020)], urlEncode[(0008,0020)]]
+describe visit hidden
+visit := getURL[visurl]
+
+
+// Generate new Study Description based on Patient ID, Visit ID, modality
+describe studyDesc "Study Description"
+studyDesc := format["{0}_{1}_{2}", (0010,0020), visit, (0008,0060)]
+(0008,1030) := studyDesc
+\end{verbatim}
+\end{frame}
+
+\begin{frame}[fragile]{Built-in functions: text formatting}
+\begin{center}
+\small
+\begin{tabular}{ l p{1in} p{2in} }
+Name & Arguments & Description \\ \hline
+
+format & {\em format-string}, $v_1, v_2, \dots$ &
+Formats the given values using the same syntax as java.text.MessageFormat \\
+
+\pause
+lowercase & {\em string} &
+Converts all uppercase characters to lowercase \\
+
+\pause
+uppercase & {\em string} &
+Converts all lowercase characters to uppercase \\
+
+\pause
+substring & {\em string, start\nobreakdash-index,
+end\nobreakdash-index} &
+Returns a substring, similar to \verb|s.substring(start,end)| \\
+
+\end{tabular}
+\end{center}
+
+\pause
+\hrule
+\small
+\begin{verbatim}
+(0008,103e) := "SECONDARY {0} - {1}" (0008,103e), (0020,0011)
+\end{verbatim}
+is (deprecated) shorthand for
+\small
+\begin{verbatim}
+(0008,103e) := format["SECONDARY {0} - {1}", \
+    (0008,103e), (0020,0011)]
+\end{verbatim}
+
+\end{frame}
+
+\begin{frame}[fragile]{Built-in functions: pattern matching}
+\begin{center}
+\small
+\begin{tabular}{ l p{1in} p{2in} }
+Name & Arguments & Description \\ \hline
+
+replace & {\em string, target, \mbox{replacement}} &
+Replaces all occurrences of \mbox{\em target} in the
+given string with \mbox{\em replacement} \\
+
+\pause
+match & {\em value, pattern, i} &
+Matches {\em value} against {\em pattern} and returns
+the content of the $i$th matching group \\
+
+\end{tabular}
+\end{center}
+
+\pause
+\hrule
+\vspace{2mm}
+\footnotesize
+\verb|match(value,pattern,i)| is comparable to:
+\verb|java.util.regex.Pattern.compile(pattern).matcher(value).group(i)|
+\end{frame}
+
+\begin{frame}[fragile]{Built-in functions: web services}
+\begin{center}
+\small
+\begin{tabular}{ l p{1in} p{2in} }
+Name & Arguments & Description \\ \hline
+
+getURL & {\em url} &
+Retrieves the content of the resource at the given URL \\
+
+\pause
+urlEncode & {\em string} &
+Encodes the given value so that it can be embedded in a URL \\
+
+\end{tabular}
+\end{center}
+
+\pause
+\hrule
+\scriptsize
+\begin{verbatim}
+describe visurl hidden
+visurl := format["http://localhost:3000/services/visitID?id={0}&date={1}", \
+       urlEncode[(0010,0020)], urlEncode[(0008,0020)]]
+visit := getURL[visurl]
+\end{verbatim}
+
+\end{frame}
+
+\subsection{Generators}
+\begin{frame}[fragile]{UID Generator}
+Reassigning UIDs is easy:
+\begin{verbatim}
+// Reassign UIDs
+(0020,000D) := new UID	// Study Instance UID
+(0020,000E) := new UID	// Series Instance UID
+(0008,0018) := new UID	// SOP Instance UID
+(0008,1155) := new UID	// Referenced SOP Instance UID
+\end{verbatim}
+(Actually, reassigning UIDs is complicated. But the UID generator does
+the right thing for you.)
+\end{frame}
+
+\subsection{Phases of execution}
+\begin{frame}[fragile]{Phases of script execution}
+\begin{enumerate}
+\item Parsing (global)
+  \begin{enumerate}[i]
+    \pause
+    \item Abstract Syntax Tree (AST) construction
+    \pause
+    \item Variable initialization
+    \pause
+    \item Variable value assignment
+  \end{enumerate}
+\pause
+\item Application (object-by-object)
+  \begin{enumerate}[i]
+    \pause
+    \item Value evaluation
+    \pause
+    \item Tag assignment
+    \pause
+    \item Object export
+  \end{enumerate}
+\end{enumerate}
+
+\pause
+Variable initialization from DICOM attributes is an ill-posed
+problem. DicomBrowser joins values into a comma-separated list, while
+the upload applet uses a single value from an arbitrary DICOM object.
+
+\end{frame}
+
+\subsection{Example: DIAN script for XNAT}
+\begin{frame}[fragile]
+\tiny
+\begin{verbatim}
+// Common DIAN anonymization script v. 001, 2009-08-21
+// by Kevin Archie, karchie@wustl.edu
+(0008,0080) = "Columbia University" : (0008,0080) := "DIAN_010" // Institution Name
+(0008,0080) = "Hatch Ctr 1.5T @ Columbia" : (0008,0080) := "DIAN_010" 
+(0008,0080) = "CCIR 3T" : (0008,0080) := "DIAN_011" 
+(0008,0080) = "Center for Clinical Imaging Research" : (0008,0080) := "DIAN_011" 
+(0008,0080) = "Washington University" : (0008,0080) := "DIAN_011" 
+(0008,0080) = "UCLA BRAIN MAPPING CENTER" : (0008,0080) := "DIAN_035" 
+(0008,0080) = "Brain Mapping" : (0008,0080) := "DIAN_035" 
+(0008,0080) = "Ser.Nr. 58013" : (0008,0080) := "DIAN_035"
+(0008,0080) = "Indiana University Radiology Associates" : (0008,0080) := "DIAN_037" 
+(0008,0080) = "INDIANA UNIVERSITY RESEARCH" : (0008,0080) := "DIAN_037" 
+(0008,0080) = "Martinos Center Bay 4" : (0008,0080) := "DIAN_094" 
+(0008,0080) = "BROWN UNIVERSITY MRF" : (0008,0080) := "DIAN_941" 
+(0008,0080) = "POW Medical Research Institute" : (0008,0080) := "DIAN_950"
+(0008,0080) = "Diagnostic MRI Services" : (0008,0080) := "DIAN_950"
+(0008,0080) = "Austin Health, Centre for PET" : (0008,0080) := project 
+(0008,0080) = "<Full Institution Name>" : (0008,0080) := "DIAN_951"
+(0008,0080) = "Brain Research Institute" : (0008,0080) := "DIAN_951"
+(0008,0080) = "SKG Radiology Subiaco" : (0008,0080) := "DIAN_952"
+(0008,0080) = "0ECU 0952" : (0008,0080) := "DIAN_952"
+(0008,0080) = "0ECU0952" : (0008,0080) := "DIAN_952"
+(0008,0080) = "The WA PET/Cyclotron Service" : (0008,0080) := "DIAN_952"
+(0008,0080) = "National Hospital for Neurology & Neurosurgery" : (0008,0080) := "DIAN_953"
+(0008,0080) = "nhnn" : (0008,0080) := "DIAN_953"
+(0008,0080) = "NHNN" : (0008,0080) := "DIAN_953"
+(0008,0080) = "Addenbrookes Cambridge" : (0008,0080) := "DIAN_953"
+(0008,0080) = "Hospital" : (0008,0080) := "DIAN_Test"
+\end{verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+\tiny
+\begin{verbatim}
+- (0008,0050)     // Accession Number
+- (0010,0021)     // Issuer of Patient ID
+- (0010,0030)     // Patient's Birth Date
+- (0010,0032)     // Patient's Birth Time
+- (0010,0050)     // Patient's Insurance Plan Code SQ
+- (0010,0101)     // Patient's Primary Language Code SQ
+- (0010,1000)     // Other Patient IDs
+- (0010,1001)     // Other Patient Names
+- (0010,1002)     // Other Patient IDs SQ
+- (0010,1005)     // Patient's Birth Name
+- (0010,1010)     // Patient's Age
+- (0010,1040)     // Patient's Address
+- (0010,1060)     // Patient's Mother's Birth Name
+- (0010,1080)     // Military Rank
+- (0010,1081)     // Branch of Service
+- (0010,1090)     // Medical Record Locator
+- (0010,2000)     // Medical Alerts
+- (0010,2110)     // Allergies
+- (0010,2150)     // Country of Residence
+- (0010,2152)     // Region of Residence
+- (0010,2154)     // Patient's Telephone Numbers
+- (0010,2160)     // Ethnic Group
+- (0010,2180)     // Occupation
+- (0010,21A0)     // Smoking Status
+- (0010,21B0)     // Additional Patient History
+- (0010,21C0)     // Pregnancy Status
+- (0010,21D0)     // Last Menstrual Date
+- (0010,21F0)     // Patient's Religious Preference
+- (0010,2203)     // Patient's Sex Neutered
+- (0010,2297)     // Responsible Person
+- (0010,2298)     // Responsible Person Role
+- (0010,2299)     // Responsible Organization
+- (0038,0500)     // Patient State
+- (0038,0100)     // Pertinent Documents SQ
+\end{verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+\tiny
+\begin{Verbatim}[commandchars=\\\{\}]
+(0012,0063) := "DIAN common deidentification v001"
+
+session := \textcolor{red}{makeSessionLabel}[format["\{0\}_v##_\{1\}", subject, lowercase[modalityLabel]]]
+
+// Use a regular expression to pull the visit ID out of the session label
+visit := match[session,".*_(v[0-9]+)_.*",1]
+
+// Don't show the visit field in the assign session variables page
+describe visit hidden                           
+
+// Use visit to set the named XNAT field
+\textcolor{red}{export visit "xnat:experimentData/visit_id"}
+
+// Set XNAT identifying fields
+(0008,1030) := project
+(0010,0010) := subject
+(0010,0020) := session
+\end{Verbatim}
+\end{frame}
+
+\section{In DicomBrowser}
+\begin{frame}{DicomEdit in DicomBrowser}
+DicomBrowser v1.5 (coming soon) includes new DicomEdit features
+\begin{itemize}
+  \item User-defined variables
+  \item Built-in functions
+\end{itemize}
+\vspace{5mm}
+\hrule
+\vspace{5mm}
+DicomBrowser v1.5 beta available via anonymous FTP at
+\url{ftp://ftp.nrg.wustl.edu/pub/DicomBrowser}
+\end{frame}
+
+\section{In XNAT}
+\subsection{Upload applet}
+\begin{frame}{DicomEdit in XNAT upload applet}
+The XNAT upload applet reads a project-specific DicomEdit script,
+if available, from
+
+\vspace{5mm}
+\scriptsize
+\nolinkurl{http://my.xnat.org/data/projects/Proj/resources/UPLOAD_CONFIG/dicom.das}
+\vspace{5mm}
+
+\normalsize
+(As of XNAT 1.5, there is no web UI for setting that script.)
+
+DicomEdit for XNAT includes some special features (makeSessionLabel and export).
+\end{frame}
+
+\begin{frame}{DicomEdit in XNAT archiving}
+
+Starting in XNAT 1.6, XNAT will apply the project DicomEdit script to
+all sessions as they are archived or moved from one project to
+another.
+
+\pause
+There are some subtleties, so how this is configured might or might
+not change from how the upload applet is configured.
+\end{frame}
+
+\section{The future}
+\begin{frame}{Future features}
+\begin{itemize}
+\pause \item Sequence support (nested tags) --- especially important
+for multiframe
+\pause \item Tag patterns (or special support for vendor private tags)
+\pause \item Better error messages and debugging support
+\pause \item Value validity checking
+\pause \item Integration/consolidation with MIRC Anonymizer language
+\end{itemize}
+\end{frame}
+
+\end{document}
